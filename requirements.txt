@@ -1,0 +1,7 @@
+requests
+sentence-transformers
+faiss-cpu
+sqlalchemy
+tqdm
+python-dotenv
+redis>=4.0
