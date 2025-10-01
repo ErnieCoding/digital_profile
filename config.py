@@ -3,9 +3,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_GEN_PATH = os.getenv("OLLAMA_GEN_PATH", "/api/generate")  # may differ by version
-OLLAMA_EMB_PATH = os.getenv("OLLAMA_EMB_PATH", "/api/embed")  # fallback
-OLLAMA_MODEL_GEN = os.getenv("OLLAMA_MODEL_GEN", "llama3")
+OLLAMA_GEN_PATH = os.getenv("OLLAMA_GEN_PATH", "/api/generate")  
+OLLAMA_EMB_PATH = os.getenv("OLLAMA_EMB_PATH", "/api/embed")  
+OLLAMA_MODEL_GEN = os.getenv("OLLAMA_MODEL_GEN", "qwen3:30b")
 OLLAMA_MODEL_EMB = os.getenv("OLLAMA_MODEL_EMB", "embeddinggemma")
 
 REDIS_URL = os.getenv("REDIS_URL", "")
