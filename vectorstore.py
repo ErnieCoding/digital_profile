@@ -1,3 +1,4 @@
+# vectorstore.py
 import faiss
 import numpy as np
 import sqlite3
@@ -30,7 +31,6 @@ class FaissVectorStore:
             self.index = faiss.read_index(self.index_path)
         except Exception:
             self.index = faiss.IndexFlatIP(self.dim)
-        # count
         c = self.meta_conn.cursor()
         c.execute("SELECT COUNT(1) FROM docs")
         self._count = c.fetchone()[0] or 0
@@ -39,7 +39,6 @@ class FaissVectorStore:
         faiss.write_index(self.index, self.index_path)
 
     def add_documents(self, docs, embeddings: np.ndarray):
-        # docs: list of dict with doc_id, meeting_id, meeting_type, chunk_text, metadata
         n = embeddings.shape[0]
         assert embeddings.shape[1] == self.dim
         self.index.add(embeddings)

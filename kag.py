@@ -2,19 +2,19 @@
 from sqlalchemy import create_engine, Column, Integer, String, Float, Text, DateTime, JSON, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
+from config import KAG_DB
 import difflib
 
 Base = declarative_base()
-engine = create_engine(f"sqlite:///kag.sqlite", connect_args={"check_same_thread": False})
+engine = create_engine(f"sqlite:///{KAG_DB}", connect_args={"check_same_thread": False})
 Session = sessionmaker(bind=engine)
 
 class Meeting(Base):
     __tablename__ = "meetings"
-    id = Column(String, primary_key=True)  # meeting_id
+    id = Column(String, primary_key=True)
     meeting_type = Column(String, index=True)
     title = Column(String, nullable=True)
     date = Column(String, nullable=True)
-    # DB column name stays "metadata", attribute name is "meta" to avoid SQLAlchemy reserved name
     meta = Column("metadata", JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -33,9 +33,18 @@ class Fact(Base):
     predicate = Column(String)
     object = Column(Text)
     confidence = Column(Float, default=0.5)
-    source = Column(String)  # e.g., "extractor", "human"
+    source = Column(String)
     meta = Column("metadata", JSON, nullable=True)
     is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class Profile(Base):
+    __tablename__ = "profiles"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, index=True)
+    content = Column(Text)
+    version = Column(Integer, default=1)
+    source_meetings = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 Base.metadata.create_all(engine)
@@ -75,14 +84,12 @@ class KnowledgeStore:
         return p
 
     def add_fact(self, meeting_id: str | None, subject: str, predicate: str, obj: str, confidence: float = 0.6, source: str | None = None, metadata: dict | None = None):
-        # fuzzy deduplication by subject+predicate+object
         existing = self.s.query(Fact).filter(Fact.subject==subject).all()
         for e in existing:
             s = f"{e.subject} {e.predicate} {e.object}"
             t = f"{subject} {predicate} {obj}"
             ratio = difflib.SequenceMatcher(None, s, t).ratio()
             if ratio > 0.86:
-                # merge
                 e.confidence = max(e.confidence, confidence)
                 if metadata:
                     mm = (e.meta or {})
@@ -105,9 +112,6 @@ class KnowledgeStore:
         return q.order_by(Fact.created_at.desc()).limit(limit).all()
 
     def get_meeting_type_candidates_for_query(self, query: str) -> list[str]:
-        """
-        Heuristic: finds top meeting_types from facts or meetings that match query keywords.
-        """
         kws = [w for w in query.split() if len(w) > 3]
         counts = {}
         for kw in kws:
@@ -121,4 +125,21 @@ class KnowledgeStore:
             rows = self.s.query(Meeting.meeting_type).all()
             for r in rows:
                 if r[0]:
-                    counts
+                    counts[r[0]] = counts.get(r[0], 0) + 1
+        sorted_types = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+        return [t for t,c in sorted_types]
+
+    # --- new profile methods ---
+    def save_profile(self, name: str, content: str, source_meetings: list | None = None):
+        last = self.s.query(Profile).filter(Profile.name==name).order_by(Profile.version.desc()).first()
+        version = (last.version + 1) if last else 1
+        p = Profile(name=name, content=content, version=version, source_meetings=source_meetings or [])
+        self.s.add(p)
+        self.s.commit()
+        return p
+
+    def get_latest_profile(self, name: str):
+        return self.s.query(Profile).filter(Profile.name==name).order_by(Profile.version.desc()).first()
+
+    def list_profiles(self, name: str):
+        return self.s.query(Profile).filter(Profile.name==name).order_by(Profile.version.desc()).all()
